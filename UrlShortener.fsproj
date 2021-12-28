@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net5.0</TargetFramework>
+    <AssemblyName>UrlShortener.App</AssemblyName>
+    <EnableDefaultContentItems>false</EnableDefaultContentItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Giraffe" Version="5.0.0-rc-6" />
+    <PackageReference Include="Giraffe.DotLiquid" Version="3.0.0-rc-1" />
+    <PackageReference Include="Ply" Version="0.3.*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Watch Include="**\*.html" Exclude="bin\**\*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="Models.fs" />
+    <Compile Include="Program.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="web.config" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Views\*.html;WebRoot\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+</Project>

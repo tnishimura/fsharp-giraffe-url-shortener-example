@@ -17,12 +17,6 @@ open System.Threading.Tasks
 
 let connectionString = "Host=localhost; Port=15432; Database=postgres; Username=postgres; Password=nyan;"
 
-// Npgsql.PostgresException - Query Problem
-// Npgsql.NpgsqlException - connection problem
-// CommonExtensionsAndTypesForNpgsqlFSharp.UnknownColumnException as e  
-// CommonExtensionsAndTypesForNpgsqlFSharp.MissingQueryException as e  
-// CommonExtensionsAndTypesForNpgsqlFSharp.NoResultsException as e  
-
 // ---------------------------------
 // Models
 // ---------------------------------

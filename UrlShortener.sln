@@ -5,6 +5,8 @@ VisualStudioVersion = 16.0.30114.105
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "UrlShortener", "UrlShortener\UrlShortener.fsproj", "{286E7567-F2A2-4D45-AC76-8A2CCFEC8FC8}"
 EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "UrlShortener.Tests", "UrlShortener.Tests\UrlShortener.Tests.fsproj", "{29EF11CE-9F9C-46A8-9164-A7C74F07B02D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -18,5 +20,9 @@ Global
 		{286E7567-F2A2-4D45-AC76-8A2CCFEC8FC8}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{286E7567-F2A2-4D45-AC76-8A2CCFEC8FC8}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{286E7567-F2A2-4D45-AC76-8A2CCFEC8FC8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{29EF11CE-9F9C-46A8-9164-A7C74F07B02D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{29EF11CE-9F9C-46A8-9164-A7C74F07B02D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{29EF11CE-9F9C-46A8-9164-A7C74F07B02D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{29EF11CE-9F9C-46A8-9164-A7C74F07B02D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

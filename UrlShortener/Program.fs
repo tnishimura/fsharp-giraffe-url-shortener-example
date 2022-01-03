@@ -15,29 +15,22 @@ open FSharp.Control.Tasks // from Ply
 open System.Threading
 open System.Threading.Tasks
 
-let connectionString = "Host=localhost; Port=15432; Database=postgres; Username=postgres; Password=nyan;"
+let connectionString = System.Environment.GetEnvironmentVariable "URL_SHORTENER_CONNECTION_STRING"
+let urlPrefix = System.Environment.GetEnvironmentVariable "URL_SHORTENER_URL_PREFIX"
+// export URL_SHORTENER_CONNECTION_STRING="Host=localhost; Port=15432; Database=postgres; Username=postgres; Password=password;"
+// export URL_SHORTENER_URL_PREFIX="https://localhost:5001"
 
 // ---------------------------------
 // Models
 // ---------------------------------
 
-// [<CLIMutable>]
 type ShortenedUrl = 
     {
         SubmissionTime : DateTime
         SubmitterIp : string
         FullUrl : string
-        ShortenedUrl : string 
+        ShortCode : string 
     }
-
-type NotFoundModel = {
-    shortenedUrl : string
-}
-
-[<CLIMutable>]
-type SubmissionModel = {
-    Url : string
-}
 
 type IndexViewModel =
     {
@@ -48,7 +41,18 @@ type ThanksViewModel =
     {
         AlreadyExisted : bool
         FullUrl : string
-        ShortenedUrl : string
+        ShortCode : string
+    }
+
+type NotFoundViewModel = 
+    {
+        ShortCode : string
+    }
+
+[<CLIMutable>]
+type SubmissionModel = 
+    {
+        Url : string
     }
 
 // ---------------------------------
@@ -71,8 +75,11 @@ let readShortenedUrlRow (read: RowReader) : ShortenedUrl =
         SubmissionTime = read.dateTime "submission_time"
         SubmitterIp = read.text "submitter_ip"
         FullUrl = read.text "full_url"
-        ShortenedUrl = read.text "shortened_url"
+        ShortCode = read.text "short_code"
     }
+
+let shortCodeToUrl (shortCode : string) : string = 
+    $"{urlPrefix}/{shortCode}"
 
 // ---------------------------------
 // View
@@ -94,28 +101,6 @@ module Views =
             ] @ content)
         ]
 
-    let notFound (model: NotFoundModel) : XmlNode = 
-        [
-            h1 [] [str "Oops, bad url!"]
-            p [] [
-                str "No such shortened url"
-                encodedText model.shortenedUrl
-            ]
-        ] |> layout
-
-    let thanks (model: ThanksViewModel) : XmlNode =
-        [
-            h1 [] [encodedText (if model.AlreadyExisted then "Url was previously shortened, here it is!" else "Thanks, Url has been shortened!")]
-            p [] [
-                encodedText "Full Url: "
-                a [_href model.FullUrl] [encodedText model.FullUrl]
-            ]
-            p [] [
-                encodedText "Shortened Url: "
-                a [_href model.ShortenedUrl] [encodedText model.ShortenedUrl]
-            ]
-        ] |> layout
-
     let index (model: IndexViewModel ) : XmlNode =
         [
             h1 [] [encodedText "Shorten your url!"]
@@ -133,28 +118,53 @@ module Views =
                     th [] [encodedText "Shortened URL"]
                     th [] [encodedText "Full Url"]
                 ]
-            ] @ List.map (fun r -> 
+            ] @ List.map (fun (r : ShortenedUrl) -> 
+                let s = shortCodeToUrl r.ShortCode
                 tr [] [ 
                     td [] [encodedText (r.SubmissionTime.ToString("MMMM dd, yyyy HH:mm"))]
                     td [] [encodedText r.SubmitterIp]
-                    td [] [a [_href r.ShortenedUrl] [encodedText r.ShortenedUrl]]
-                    td [] [encodedText r.FullUrl]
+                    td [] [a [_href s] [encodedText s]]
+                    td [] [a [_href r.FullUrl] [encodedText r.FullUrl]]
                 ]) model.Recents)
         ] |> layout
 
-let renderNotFound (shortenedUrl : string) = 
-    let model = { shortenedUrl = shortenedUrl }
+    let thanks (model: ThanksViewModel) : XmlNode =
+        let s = shortCodeToUrl model.ShortCode
+        [
+            h1 [] [encodedText (if model.AlreadyExisted then "Url was previously shortened, here it is!" else "Thanks, Url has been shortened!")]
+            p [] [
+                encodedText "Full Url: "
+                a [_href model.FullUrl] [encodedText model.FullUrl]
+            ]
+            p [] [
+                encodedText "Shortened Url: "
+                a [_href s] [encodedText s]
+            ]
+        ] |> layout
+
+    let notFound (model: NotFoundViewModel) : XmlNode = 
+        let s = shortCodeToUrl model.ShortCode
+        [
+            h1 [] [str "Oops, bad url!"]
+            p [] [
+                str "No such shortened url"
+                encodedText s
+            ]
+        ] |> layout
+
+let renderNotFound (shortCode : string) = 
+    let model = { ShortCode = shortCode }
     htmlView (Views.notFound model)
 
 let renderIndexView (recents: ShortenedUrl list) =
     let model     = { Recents = recents }
     htmlView (Views.index model)
 
-let renderThanksView (alreadyExisted : bool) (shortenedUrl : string) (fullUrl : string) =
+let renderThanksView (alreadyExisted : bool) (shortCode : string) (fullUrl : string) =
     let model = { 
         AlreadyExisted = alreadyExisted
         FullUrl = fullUrl
-        ShortenedUrl = shortenedUrl
+        ShortCode = shortCode
     }
     htmlView (Views.thanks model)
 
@@ -162,28 +172,28 @@ let renderThanksView (alreadyExisted : bool) (shortenedUrl : string) (fullUrl : 
 // Database stuff
 // ---------------------------------
 
-let lookupShortenedUrl (url : string) : Task<ShortenedUrl option> =
+let lookupShortCode (code : string) : Task<ShortenedUrl option> =
     task {
         try 
             return!
                 connectionString
                 |> Sql.connect
-                |> Sql.query "select * from shortened_urls where shortened_url = @shortened_url"
-                |> Sql.parameters [ "shortened_url", Sql.string url ]
+                |> Sql.query "select * from shortened_urls where short_code = @short_code"
+                |> Sql.parameters [ "short_code", Sql.string code ]
                 |> Sql.executeRowAsync (fun read -> read |> readShortenedUrlRow |> Some)
         with
         | :? CommonExtensionsAndTypesForNpgsqlFSharp.NoResultsException 
             -> return! Task.FromResult None
     }
 
-let lookupFullUrl (url : string) : Task<ShortenedUrl option> =
+let lookupFullUrl (code : string) : Task<ShortenedUrl option> =
     task {
         try 
             return!
                 connectionString
                 |> Sql.connect
-                |> Sql.query "select * from shortened_urls where full_url = @full_url"
-                |> Sql.parameters [ "full_url", Sql.string url ]
+                |> Sql.query "select * from shortened_urls where short_code = @short_code"
+                |> Sql.parameters [ "short_code", Sql.string code ]
                 |> Sql.executeRowAsync (fun read -> read |> readShortenedUrlRow |> Some)
         with
         | :? CommonExtensionsAndTypesForNpgsqlFSharp.NoResultsException 
@@ -191,7 +201,6 @@ let lookupFullUrl (url : string) : Task<ShortenedUrl option> =
     }
 
 let getRecentShortenedUrls (count: int) : Task<ShortenedUrl list> =
-    printfn "getRecentShortenedUrls"
     connectionString
     |> Sql.connect
     |> Sql.query "select * from shortened_urls order by submission_time desc limit @limit"
@@ -200,24 +209,23 @@ let getRecentShortenedUrls (count: int) : Task<ShortenedUrl list> =
 
 let createNewShortener (submitterIp : string) (fullUrl: string) : Task<string> =
     let shortCode = generateShortCode ()
-    let shortUrl = "https://localhost:5001/" + shortCode
 
     task {
         let! rows =
             connectionString
             |> Sql.connect
-            |> Sql.query "insert into shortened_urls (full_url, shortened_url, submitter_ip) values ( @full_url, @shortened_url, @submitter_ip)"
+            |> Sql.query "insert into shortened_urls (full_url, short_code, submitter_ip) values ( @full_url, @short_code, @submitter_ip)"
             |> Sql.parameters [ 
                 ("full_url", Sql.string fullUrl) 
-                ("shortened_url", Sql.string shortUrl)
+                ("short_code", Sql.string shortCode)
                 ("submitter_ip", Sql.string submitterIp)]
             |> Sql.executeNonQueryAsync
         rows |> ignore
-        return shortUrl
+        return shortCode
     }
 
 // ---------------------------------
-// Web App
+// Handlers
 // ---------------------------------
 
 let handleIndex : HttpHandler =
@@ -228,7 +236,7 @@ let handleIndex : HttpHandler =
             let! recents = getRecentShortenedUrls 10
             recents |> Seq.iter (fun r -> 
                 logger.LogDebug(r.FullUrl)
-                logger.LogDebug(r.ShortenedUrl)
+                logger.LogDebug(r.ShortCode)
                 logger.LogDebug(r.SubmissionTime.ToIsoString())
                 logger.LogDebug(r.SubmitterIp)
             )
@@ -236,19 +244,14 @@ let handleIndex : HttpHandler =
             return! (renderIndexView recents) next ctx
         }
 
-let handleRedirect (p : seq<string>) : HttpHandler = 
+let handleRedirect (shortCode : string ) : HttpHandler = 
     fun next ctx ->
         task {
-            let logger = ctx.GetLogger("submission")
-
-            let url = requestToFullUrl ctx.Request
-            logger.LogInformation(url)
-
-            let! res = lookupShortenedUrl url
+            let! res = lookupFullUrl shortCode
             let h = 
                 match res with
                 | Some s -> redirectTo false s.FullUrl
-                | None -> renderNotFound url
+                | None -> setStatusCode 404 >=> renderNotFound shortCode
 
             return! h next ctx
         }
@@ -267,7 +270,8 @@ let handleSubmission : HttpHandler =
             match existing with 
             | Some s -> 
                 logger.LogInformation("Already exists")
-                return! (renderThanksView true (s.ShortenedUrl) fullUrl) next ctx
+                ctx.SetHttpHeader("X-Short-Code", s.ShortCode)
+                return! (renderThanksView true (s.ShortCode) fullUrl) next ctx
             | None -> 
                 logger.LogInformation("Not yet!!!")
                 let remoteIp = 
@@ -275,9 +279,10 @@ let handleSubmission : HttpHandler =
                     | null -> "0.0.0.0"
                     | ip -> ip.ToString()
                 
-                let! short = createNewShortener remoteIp fullUrl
+                let! shortCode = createNewShortener remoteIp fullUrl
+                ctx.SetHttpHeader("X-Short-Code", shortCode)
 
-                return! (renderThanksView false short fullUrl) next ctx
+                return! (renderThanksView false shortCode fullUrl) next ctx
         }
 
 let webApp =
@@ -285,7 +290,8 @@ let webApp =
         GET >=>
             choose [
                 route "/" >=> handleIndex
-                routexp "/([0-9a-zA-Z]+)" handleRedirect
+                // routexp "/([0-9a-zA-Z]+)" handleRedirect
+                routef "/%s" handleRedirect
             ]
         POST >=> route "/" >=> handleSubmission
         setStatusCode 404 >=> text "Not Found" ]
@@ -333,6 +339,12 @@ let configureLogging (builder : ILoggingBuilder) =
 
 [<EntryPoint>]
 let main args =
+    if String.IsNullOrEmpty connectionString then
+        failwith "URL_SHORTENER_CONNECTION_STRING environment variable is not set"
+
+    if String.IsNullOrEmpty urlPrefix then
+        failwith "URL_SHORTENER_URL_PREFIX environment variable is not set"
+    
     let contentRoot = Directory.GetCurrentDirectory()
     let webRoot     = Path.Combine(contentRoot, "WebRoot")
     Host.CreateDefaultBuilder(args)

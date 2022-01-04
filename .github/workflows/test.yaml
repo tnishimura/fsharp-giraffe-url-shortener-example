@@ -21,6 +21,8 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      ports:
+        - 5432:5432
 
     steps:
       - uses: actions/checkout@v2
@@ -34,12 +36,12 @@ jobs:
         run: dotnet restore
 
       - name: Create schema
-        run: psql -h postgres -U postgres < UrlShortener/init.sql
+        run: psql -h localhost -U postgres < UrlShortener/init.sql
         env: 
           PGPASSWORD: password
 
       - name: Seed with sample data
-        run: psql -h postgres -U postgres < UrlShortener/sample-data.sql
+        run: psql -h localhost -U postgres < UrlShortener/sample-data.sql
         env: 
           PGPASSWORD: password
 

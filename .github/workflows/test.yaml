@@ -1,0 +1,49 @@
+
+name: dotnet package
+
+on: [push]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        dotnet-version: ['5.0.x' ]
+
+      postgres:
+        image: postgres
+        env:
+          POSTGRES_PASSWORD: password
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Setup .NET Core SDK ${{ matrix.dotnet-version }}
+        uses: actions/setup-dotnet@v1.7.2
+        with:
+          dotnet-version: ${{ matrix.dotnet-version }}
+
+      - name: Install dependencies
+        run: dotnet restore
+
+      - name: Create schema
+        run: psql -h postgres -U postgres < UrlShortener/init.sql
+        env: 
+          PGPASSWORD: password
+
+      - name: Seed with sample data
+        run: psql -h postgres -U postgres < UrlShortener/sample-data.sql
+        env: 
+          PGPASSWORD: password
+
+      - name: Test
+        run: dotnet test --no-restore --verbosity normal
+        env: 
+          URL_SHORTENER_CONNECTION_STRING: "Host=postgres; Port=5432; Database=postgres; Username=postgres; Password=password;"
+          URL_SHORTENER_URL_PREFIX: "https://localhost:5001"

@@ -11,6 +11,7 @@ jobs:
       matrix:
         dotnet-version: ['5.0.x' ]
 
+    services:
       postgres:
         image: postgres
         env:

@@ -12,13 +12,10 @@ open Microsoft.Extensions.DependencyInjection
 open Giraffe
 open Npgsql.FSharp
 open FSharp.Control.Tasks // from Ply
-open System.Threading
 open System.Threading.Tasks
 
 let connectionString = System.Environment.GetEnvironmentVariable "URL_SHORTENER_CONNECTION_STRING"
-let urlPrefix = System.Environment.GetEnvironmentVariable "URL_SHORTENER_URL_PREFIX"
-// export URL_SHORTENER_CONNECTION_STRING="Host=localhost; Port=15432; Database=postgres; Username=postgres; Password=password;"
-// export URL_SHORTENER_URL_PREFIX="https://localhost:5001"
+let urlPrefix = "https://localhost:5001"
 
 // ---------------------------------
 // Models
@@ -91,7 +88,7 @@ module Views =
     let layout (content: XmlNode list) =
         html [] [
             head [] [
-                title []  [ encodedText "GiraffeViewLearn" ]
+                title []  [ str "GiraffeViewLearn" ]
                 link [ _rel  "stylesheet"
                        _type "text/css"
                        _href "/main.css" ]
@@ -103,42 +100,38 @@ module Views =
 
     let index (model: IndexViewModel ) : XmlNode =
         [
-            h1 [] [encodedText "Shorten your url!"]
+            h1 [] [str "Shorten your url!"]
             p [] [
                 form [_method "post" ; _action "/"] [
                     input [_name "url" ; _type "text"] 
-                    input [_value "Shorten!" ; _type "submit"] 
-                ]
-            ]
-            h1 [] [encodedText "Recent Shortenings"]
+                    input [_value "Shorten!" ; _type "submit"]]]
+            h1 [] [str "Recent Shortenings"]
             table [] ([
                 tr [] [
-                    th [] [encodedText "Submission Time"]
-                    th [] [encodedText "Submitter IP"]
-                    th [] [encodedText "Shortened URL"]
-                    th [] [encodedText "Full Url"]
-                ]
-            ] @ List.map (fun (r : ShortenedUrl) -> 
-                let s = shortCodeToUrl r.ShortCode
-                tr [] [ 
-                    td [] [encodedText (r.SubmissionTime.ToString("MMMM dd, yyyy HH:mm"))]
-                    td [] [encodedText r.SubmitterIp]
-                    td [] [a [_href s] [encodedText s]]
-                    td [] [a [_href r.FullUrl] [encodedText r.FullUrl]]
-                ]) model.Recents)
+                    th [] [str "Submission Time"]
+                    th [] [str "Submitter IP"]
+                    th [] [str "Shortened URL"]
+                    th [] [str "Full Url"]]] 
+            @ [ for r in model.Recents -> 
+                    let s = shortCodeToUrl r.ShortCode
+                    tr [] [ 
+                        td [] [str (r.SubmissionTime.ToString("MMMM dd, yyyy HH:mm"))]
+                        td [] [str r.SubmitterIp]
+                        td [] [a [_href s] [str s]]
+                        td [] [a [_href r.FullUrl] [str r.FullUrl]]]])
         ] |> layout
 
     let thanks (model: ThanksViewModel) : XmlNode =
         let s = shortCodeToUrl model.ShortCode
         [
-            h1 [] [encodedText (if model.AlreadyExisted then "Url was previously shortened, here it is!" else "Thanks, Url has been shortened!")]
+            h1 [] [str (if model.AlreadyExisted then "Url was previously shortened, here it is!" else "Thanks, Url has been shortened!")]
             p [] [
-                encodedText "Full Url: "
-                a [_href model.FullUrl] [encodedText model.FullUrl]
+                str "Full Url: "
+                a [_href model.FullUrl] [str model.FullUrl]
             ]
             p [] [
-                encodedText "Shortened Url: "
-                a [_href s] [encodedText s]
+                str "Shortened Url: "
+                a [_href s] [str s]
             ]
         ] |> layout
 
@@ -148,7 +141,7 @@ module Views =
             h1 [] [str "Oops, bad url!"]
             p [] [
                 str "No such shortened url"
-                encodedText s
+                str s
             ]
         ] |> layout
 
@@ -186,14 +179,14 @@ let lookupShortCode (code : string) : Task<ShortenedUrl option> =
             -> return! Task.FromResult None
     }
 
-let lookupFullUrl (code : string) : Task<ShortenedUrl option> =
+let lookupFullUrl (full_url : string) : Task<ShortenedUrl option> =
     task {
         try 
             return!
                 connectionString
                 |> Sql.connect
-                |> Sql.query "select * from shortened_urls where short_code = @short_code"
-                |> Sql.parameters [ "short_code", Sql.string code ]
+                |> Sql.query "select * from shortened_urls where full_url = @full_url"
+                |> Sql.parameters [ "full_url", Sql.string full_url ]
                 |> Sql.executeRowAsync (fun read -> read |> readShortenedUrlRow |> Some)
         with
         | :? CommonExtensionsAndTypesForNpgsqlFSharp.NoResultsException 
@@ -231,23 +224,14 @@ let createNewShortener (submitterIp : string) (fullUrl: string) : Task<string> =
 let handleIndex : HttpHandler =
     fun next ctx -> 
         task {
-            let logger = ctx.GetLogger("submission")
-
             let! recents = getRecentShortenedUrls 10
-            recents |> Seq.iter (fun r -> 
-                logger.LogDebug(r.FullUrl)
-                logger.LogDebug(r.ShortCode)
-                logger.LogDebug(r.SubmissionTime.ToIsoString())
-                logger.LogDebug(r.SubmitterIp)
-            )
-
             return! (renderIndexView recents) next ctx
         }
 
 let handleRedirect (shortCode : string ) : HttpHandler = 
     fun next ctx ->
         task {
-            let! res = lookupFullUrl shortCode
+            let! res = lookupShortCode shortCode
             let h = 
                 match res with
                 | Some s -> redirectTo false s.FullUrl
@@ -259,21 +243,15 @@ let handleRedirect (shortCode : string ) : HttpHandler =
 let handleSubmission : HttpHandler =
     fun next ctx ->
         task {
-            let logger = ctx.GetLogger("submission")
-
             let! s = ctx.BindFormAsync<SubmissionModel>()
             let fullUrl = s.Url
-            logger.LogInformation("got a submission for")
-            logger.LogInformation(fullUrl)
 
             let! existing = lookupFullUrl fullUrl
             match existing with 
             | Some s -> 
-                logger.LogInformation("Already exists")
                 ctx.SetHttpHeader("X-Short-Code", s.ShortCode)
                 return! (renderThanksView true (s.ShortCode) fullUrl) next ctx
             | None -> 
-                logger.LogInformation("Not yet!!!")
                 let remoteIp = 
                     match ctx.Connection.RemoteIpAddress with
                     | null -> "0.0.0.0"
@@ -342,9 +320,6 @@ let main args =
     if String.IsNullOrEmpty connectionString then
         failwith "URL_SHORTENER_CONNECTION_STRING environment variable is not set"
 
-    if String.IsNullOrEmpty urlPrefix then
-        failwith "URL_SHORTENER_URL_PREFIX environment variable is not set"
-    
     let contentRoot = Directory.GetCurrentDirectory()
     let webRoot     = Path.Combine(contentRoot, "WebRoot")
     Host.CreateDefaultBuilder(args)
@@ -353,9 +328,9 @@ let main args =
                 webHostBuilder
                     .UseContentRoot(contentRoot)
                     .UseWebRoot(webRoot)
-                    .Configure(Action<IApplicationBuilder> configureApp)
-                    .ConfigureServices(configureServices)
                     .ConfigureLogging(configureLogging)
+                    .ConfigureServices(configureServices)
+                    .Configure(Action<IApplicationBuilder> configureApp)
                     |> ignore)
         .Build()
         .Run()

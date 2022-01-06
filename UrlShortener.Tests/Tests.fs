@@ -7,16 +7,12 @@ open Microsoft.AspNetCore.TestHost
 open Microsoft.AspNetCore.Hosting
 open System.Net.Http
 open System.Collections.Generic
-open System.Text.RegularExpressions
 open FSharp.Control.Tasks // from Ply
 
-if String.IsNullOrEmpty (System.Environment.GetEnvironmentVariable "URL_SHORTENER_CONNECTION_STRING") then
-    failwith "URL_SHORTENER_CONNECTION_STRING environment variable is not set"
-
-if String.IsNullOrEmpty (System.Environment.GetEnvironmentVariable "URL_SHORTENER_URL_PREFIX") then
-    failwith "URL_SHORTENER_URL_PREFIX environment variable is not set"
-
 let getTestHost() =
+    if String.IsNullOrEmpty (System.Environment.GetEnvironmentVariable "URL_SHORTENER_CONNECTION_STRING") then
+        failwith "URL_SHORTENER_CONNECTION_STRING environment variable is not set"
+
     WebHostBuilder()
         .UseTestServer()
         .Configure(Action<IApplicationBuilder> UrlShortener.App.configureApp)

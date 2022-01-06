@@ -8,7 +8,6 @@
 
   <ItemGroup>
     <PackageReference Include="Giraffe" Version="5.0.0-rc-6" />
-    <PackageReference Include="Giraffe.DotLiquid" Version="3.0.0-rc-1" />
     <PackageReference Include="Giraffe.ViewEngine" Version="1.4.0" />
     <PackageReference Include="Npgsql.FSharp" Version="4.1.0" />
     <PackageReference Include="Ply" Version="0.3.*" />
